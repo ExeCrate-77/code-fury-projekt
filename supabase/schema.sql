@@ -1,102 +1,112 @@
 -- ===================================================================
--- StackForge AI: Supabase Database Schema & RLS Policies
+-- AgentForge: Supabase Database Schema & RLS Policies
 -- ===================================================================
 
--- Enable UUID extension
 create extension if not exists "uuid-ossp";
 
--- 1. PROFILES (Extends Supabase Auth users)
-create table if not exists public.profiles (
-  id uuid primary key references auth.users(id) on delete cascade,
-  email text not null,
-  full_name text,
-  avatar_url text,
-  role text default 'creator' check (role in ('creator', 'consumer', 'admin')),
-  credits_balance numeric default 50.00, -- simulated starting credits for consumers ($50)
+-- Enable pgvector if available for semantic search over skills/tools
+create extension if not exists "vector";
+
+-- 1. MODELS (LLM Providers & Configuration)
+create table if not exists public.models (
+  id uuid primary key default uuid_generate_v4(),
+  owner_id uuid references auth.users(id) on delete cascade,
+  name text not null,
+  provider text not null check (provider in ('google_gemini', 'openai_compatible', 'anthropic', 'custom_endpoint')),
+  endpoint_url text,
+  api_key_encrypted text,
+  params jsonb not null default '{
+    "model_name": "gemini-2.5-flash",
+    "temperature": 0.3,
+    "max_output_tokens": 2048,
+    "top_p": 0.95
+  }'::jsonb,
+  is_builtin boolean default false,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 2. SKILLS (Versioned Prompt Templates & System Personas)
+create table if not exists public.skills (
+  id uuid primary key default uuid_generate_v4(),
+  owner_id uuid references auth.users(id) on delete cascade,
+  name text not null,
+  description text,
+  system_prompt text not null,
+  input_schema jsonb default '{"type": "object", "properties": {"prompt": {"type": "string"}}}'::jsonb,
+  version integer default 1,
+  category text default 'General',
+  is_public boolean default true,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 2. SKILLS (Reusable prompt templates & domain personas)
-create table if not exists public.skills (
-  id uuid primary key default uuid_generate_v4(),
-  owner_id uuid references public.profiles(id) on delete set null,
-  name text not null,
-  slug text not null unique,
-  description text,
-  category text not null default 'General',
-  prompt_template text not null,
-  is_public boolean default true,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
+-- 3. TOOLS (LangChain Structured Tools & Sandboxes)
+create type tool_type_enum as enum ('web_search', 'web_scrape', 'code_exec', 'http_call', 'custom');
 
--- 3. TOOLS (Available tool integrations)
 create table if not exists public.tools (
   id uuid primary key default uuid_generate_v4(),
-  name text not null unique,
-  display_name text not null,
+  owner_id uuid references auth.users(id) on delete cascade,
+  name text not null,
   description text not null,
-  type text not null check (type in ('calculator', 'code_interpreter', 'web_search', 'custom_webhook')),
-  parameters_schema jsonb not null default '{}'::jsonb,
-  is_enabled boolean default true,
+  input_schema jsonb not null default '{"type": "object", "properties": {}}'::jsonb,
+  tool_type text not null default 'code_exec' check (tool_type in ('web_search', 'web_scrape', 'code_exec', 'http_call', 'custom')),
+  webhook_url text,
+  code_snippet text,
+  is_builtin boolean default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 4. STACKS (Assembled Agent Stacks)
-create table if not exists public.stacks (
+-- 4. AGENTS (Assembled Agent Stacks: Model + Skill + 1..N Tools)
+create table if not exists public.agents (
   id uuid primary key default uuid_generate_v4(),
-  owner_id uuid references public.profiles(id) on delete cascade,
+  owner_id uuid references auth.users(id) on delete cascade,
   name text not null,
   slug text not null unique,
   tagline text,
   description text,
-  category text not null default 'Development',
-  config_json jsonb not null default '{
-    "model": "gemini-2.0-flash",
-    "temperature": 0.7,
-    "max_tokens": 1000,
-    "system_prompt": "",
-    "selected_skills": [],
-    "enabled_tools": ["calculator"]
-  }'::jsonb,
-  status text not null default 'draft' check (status in ('draft', 'published', 'archived')),
-  price_per_call numeric not null default 0.002, -- $ per API call
-  monthly_price numeric default 0.00, -- $ for subscription
+  skill_id uuid references public.skills(id) on delete set null,
+  model_id uuid references public.models(id) on delete set null,
+  tool_ids text[] default '{}',
+  is_published boolean default false,
+  api_key text,
+  price_per_call numeric not null default 0.002,
+  pricing_model text not null default 'per_call' check (pricing_model in ('per_call', 'subscription', 'free')),
+  monthly_price numeric default 0.00,
   calls_count integer default 0,
   success_rate numeric default 99.8,
-  avg_latency_ms integer default 145,
-  rating numeric default 4.9,
+  avg_latency_ms integer default 140,
+  rating numeric default 4.95,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   updated_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 5. API KEYS (Issued to consumers or creators for stack execution)
-create table if not exists public.api_keys (
+-- 5. AGENT_RUNS (Powers history, real-time tool logs, analytics & metering)
+create table if not exists public.agent_runs (
   id uuid primary key default uuid_generate_v4(),
-  stack_id uuid references public.stacks(id) on delete cascade,
-  consumer_id uuid references public.profiles(id) on delete cascade,
-  key_label text not null default 'Production Key',
-  key_prefix text not null, -- e.g. "sf_live_..."
-  key_hash text not null, -- SHA-256 hash of secret key
-  rate_limit_per_minute integer default 1200,
-  status text not null default 'active' check (status in ('active', 'revoked')),
-  last_used_at timestamp with time zone,
+  agent_id uuid references public.agents(id) on delete cascade,
+  caller_id uuid references auth.users(id) on delete set null,
+  input jsonb not null,
+  output jsonb not null,
+  tools_called jsonb default '[]'::jsonb,
+  tokens_used integer default 0,
+  prompt_tokens integer default 0,
+  completion_tokens integer default 0,
+  latency_ms integer default 0,
+  cost numeric default 0.002,
+  status text default 'success' check (status in ('success', 'error', 'rate_limited')),
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- 6. USAGE LOGS (Telemetry, token consumption & metering)
-create table if not exists public.usage_logs (
+-- 6. API_KEYS (Consumer access keys for published agents)
+create table if not exists public.api_keys (
   id uuid primary key default uuid_generate_v4(),
-  stack_id uuid references public.stacks(id) on delete cascade,
-  api_key_id uuid references public.api_keys(id) on delete set null,
-  consumer_id uuid references public.profiles(id) on delete set null,
-  prompt_tokens integer default 0,
-  completion_tokens integer default 0,
-  total_tokens integer default 0,
-  latency_ms integer default 0,
-  cost_deducted numeric default 0.002,
-  status text default 'success' check (status in ('success', 'error', 'rate_limited')),
-  tools_called text[] default '{}',
+  agent_id uuid references public.agents(id) on delete cascade,
+  owner_id uuid references auth.users(id) on delete cascade,
+  key_label text not null,
+  key_prefix text not null,
+  key_hash text not null,
+  rate_limit_per_min integer default 1200,
+  status text default 'active' check (status in ('active', 'revoked')),
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
@@ -104,119 +114,87 @@ create table if not exists public.usage_logs (
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- ===================================================================
 
-alter table public.profiles enable row level security;
-alter table public.stacks enable row level security;
+alter table public.models enable row level security;
 alter table public.skills enable row level security;
 alter table public.tools enable row level security;
+alter table public.agents enable row level security;
+alter table public.agent_runs enable row level security;
 alter table public.api_keys enable row level security;
-alter table public.usage_logs enable row level security;
 
--- Profiles: Anyone can view basic creator info, users can edit their own profile
-create policy "Public profiles are viewable by everyone" on public.profiles
-  for select using (true);
+-- Models: builtin are public; users view/edit their own custom models
+create policy "Built-in and owned models are viewable" on public.models
+  for select using (is_builtin = true or auth.uid() = owner_id);
 
-create policy "Users can update own profile" on public.profiles
-  for update using (auth.uid() = id);
+create policy "Users can manage own models" on public.models
+  for all using (auth.uid() = owner_id);
 
--- Stacks: Published stacks are viewable by everyone; creators can CRUD their own
-create policy "Published stacks are viewable by everyone" on public.stacks
-  for select using (status = 'published' or auth.uid() = owner_id);
-
-create policy "Creators can insert own stacks" on public.stacks
-  for insert with check (auth.uid() = owner_id or auth.uid() is null);
-
-create policy "Creators can update own stacks" on public.stacks
-  for update using (auth.uid() = owner_id);
-
-create policy "Creators can delete own stacks" on public.stacks
-  for delete using (auth.uid() = owner_id);
-
--- Skills & Tools: Public read
-create policy "Skills are viewable by everyone" on public.skills
+-- Skills: public skills viewable by all; owners edit their own
+create policy "Public and owned skills are viewable" on public.skills
   for select using (is_public = true or auth.uid() = owner_id);
 
-create policy "Tools are viewable by everyone" on public.tools
-  for select using (true);
+create policy "Users can manage own skills" on public.skills
+  for all using (auth.uid() = owner_id);
 
--- API Keys: Users see keys they own or for stacks they created
-create policy "Users can view own api keys" on public.api_keys
-  for select using (auth.uid() = consumer_id);
+-- Tools: builtin and owned tools viewable
+create policy "Built-in and owned tools are viewable" on public.tools
+  for select using (is_builtin = true or auth.uid() = owner_id);
 
-create policy "Users can create api keys" on public.api_keys
-  for insert with check (auth.uid() = consumer_id or auth.uid() is null);
+create policy "Users can manage own tools" on public.tools
+  for all using (auth.uid() = owner_id);
 
--- Usage Logs: Viewable by stack owner or consumer
-create policy "Users can view relevant usage logs" on public.usage_logs
-  for select using (auth.uid() = consumer_id);
+-- Agents: Published agents viewable by everyone; owners manage own
+create policy "Published and owned agents are viewable" on public.agents
+  for select using (is_published = true or auth.uid() = owner_id);
+
+create policy "Owners can manage own agents" on public.agents
+  for all using (auth.uid() = owner_id);
+
+-- Agent Runs: Viewable by agent creator or caller
+create policy "Users view relevant agent runs" on public.agent_runs
+  for select using (
+    auth.uid() = caller_id or 
+    exists (select 1 from public.agents where id = agent_runs.agent_id and owner_id = auth.uid())
+  );
 
 -- ===================================================================
--- SEED DATA: Pre-populate Core Tools and Starter Skills
+-- SEED DATA: Preloaded Models, Skills, Tools, and Agents
 -- ===================================================================
 
-insert into public.tools (name, display_name, description, type, parameters_schema)
+insert into public.models (name, provider, params, is_builtin)
+values
+  ('Google Gemini 2.5 Flash', 'google_gemini', '{"model_name": "gemini-2.5-flash", "temperature": 0.2, "max_output_tokens": 2048, "top_p": 0.95}'::jsonb, true),
+  ('Google Gemini 2.5 Pro', 'google_gemini', '{"model_name": "gemini-2.5-pro", "temperature": 0.3, "max_output_tokens": 4096, "top_p": 0.95}'::jsonb, true),
+  ('OpenAI Compatible Gateway', 'openai_compatible', '{"model_name": "gpt-4o-mini", "temperature": 0.2, "max_output_tokens": 2048}'::jsonb, true)
+on conflict do nothing;
+
+insert into public.tools (name, description, tool_type, input_schema, is_builtin)
 values
   (
-    'calculator',
-    'Mathematical Expression Engine',
-    'Evaluates complex mathematical, statistical, and financial calculations with high precision.',
-    'calculator',
-    '{"type": "object", "properties": {"expression": {"type": "string", "description": "The math expression to evaluate, e.g. (1450 * 0.18) + (3200 / 4)"}}, "required": ["expression"]}'::jsonb
-  ),
-  (
-    'code_interpreter',
-    'Sandboxed Code Sandbox',
-    'Executes JavaScript/Python algorithmic scripts safely in an isolated VM environment with execution timeouts.',
-    'code_interpreter',
-    '{"type": "object", "properties": {"language": {"type": "string", "enum": ["javascript", "python"]}, "code": {"type": "string", "description": "The self-contained code snippet to execute"}}, "required": ["code"]}'::jsonb
+    'code_exec',
+    'Executes JavaScript/Python algorithms in an isolated sandbox with memory and timeout constraints.',
+    'code_exec',
+    '{"type": "object", "properties": {"code": {"type": "string", "description": "The executable code string"}}, "required": ["code"]}'::jsonb,
+    true
   ),
   (
     'web_search',
-    'Real-time Web Grounding',
-    'Searches live web indexes and scrapes key citations and factual sources for up-to-date queries.',
+    'Searches live web indexes and retrieves grounded citations and official documentation snippets.',
     'web_search',
-    '{"type": "object", "properties": {"query": {"type": "string", "description": "Target search query"}}, "required": ["query"]}'::jsonb
-  ),
-  (
-    'custom_webhook',
-    'External REST Webhook Tool',
-    'Dispatches secure HTTP requests to external third-party endpoints or microservices.',
-    'custom_webhook',
-    '{"type": "object", "properties": {"url": {"type": "string"}, "method": {"type": "string", "enum": ["GET", "POST"]}, "payload": {"type": "object"}}, "required": ["url"]}'::jsonb
-  )
-on conflict (name) do nothing;
-
-insert into public.skills (name, slug, description, category, prompt_template, is_public)
-values
-  (
-    'Senior Code Architect & Security Auditor',
-    'code-architect',
-    'Analyzes AST flows, enforces secure coding standards (OWASP), and produces production-ready refactors.',
-    'Development',
-    'You are a Principal Software Architect and Security Auditor. When evaluating code or software designs, identify edge-case vulnerabilities, race conditions, and time-complexity bottlenecks. Provide robust, clean TypeScript/Python solutions with complete test considerations.',
+    '{"type": "object", "properties": {"query": {"type": "string", "description": "Search query"}}, "required": ["query"]}'::jsonb,
     true
   ),
   (
-    'Quantitative Financial Strategist',
-    'quant-finance',
-    'Analyzes balance sheets, calculates DCF models, and evaluates alpha signals with strict numeric rigor.',
-    'Finance',
-    'You are an elite Wall Street Quantitative Strategist. Always provide mathematically grounded reasoning, calculate margins and risks using the calculator tool, and provide concise risk-reward matrices.',
+    'web_scrape',
+    'Fetches clean markdown content from public URLs with bot-filter mitigation.',
+    'web_scrape',
+    '{"type": "object", "properties": {"url": {"type": "string", "description": "Target webpage URL"}}, "required": ["url"]}'::jsonb,
     true
   ),
   (
-    'Clinical Research Scribe & Synthesizer',
-    'clinical-research',
-    'Synthesizes biomedical literature, patient symptom timelines, and pharmacological interactions.',
-    'Healthcare',
-    'You are a biomedical research specialist. Provide structured differential analysis, cite clinical protocols, and format outputs with standard medical terminology (ICD-10/SNOMED). Always include clinical safety disclaimers.',
-    true
-  ),
-  (
-    'Data Science & SQL Pipeline Engineer',
-    'data-engineer',
-    'Optimizes high-throughput SQL queries, builds ETL pipelines, and computes statistical aggregates.',
-    'Data',
-    'You are a Staff Data Engineer. Generate performant ANSI SQL, Pandas transformation scripts, and schema normalization designs. Test data transforms using the code interpreter.',
+    'http_call',
+    'Performs authenticated outbound HTTP/REST webhooks with custom payloads.',
+    'http_call',
+    '{"type": "object", "properties": {"url": {"type": "string"}, "method": {"type": "string", "enum": ["GET", "POST"]}, "payload": {"type": "object"}}, "required": ["url"]}'::jsonb,
     true
   )
-on conflict (slug) do nothing;
+on conflict do nothing;
