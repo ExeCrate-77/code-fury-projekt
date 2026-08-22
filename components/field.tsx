@@ -12,7 +12,7 @@ export function Select({
     <select
       className={cn(
         fieldClasses,
-        "h-9 appearance-none uppercase tracking-widest text-xs",
+        "h-10 appearance-none bg-card/80 font-bold uppercase tracking-[0.16em] text-xs shadow-[inset_0_1px_0_color-mix(in_oklab,var(--foreground)_10%,transparent)] hover:border-primary/60 focus-visible:ring-1 focus-visible:ring-primary",
         className
       )}
       {...props}

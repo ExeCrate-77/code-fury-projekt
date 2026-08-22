@@ -6,12 +6,14 @@ import { useAuth } from "@/lib/use-auth"
 import { cn } from "@/lib/utils"
 
 const LINKS = [
-  { href: "/", label: "Market" },
+  { href: "/", label: "Chat" },
+  { href: "/marketplace", label: "Marketplace" },
   { href: "/skills", label: "Skills" },
   { href: "/models", label: "Models" },
   { href: "/tools", label: "Tools" },
   { href: "/agents/builder", label: "Builder" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/docs", label: "API Docs" },
 ]
 
 export function Nav() {

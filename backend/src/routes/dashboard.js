@@ -5,6 +5,25 @@ import { getAdminClient } from '../lib/supabase.js'
 const router = Router()
 router.use(requireUser)
 
+// Consumer ledger: calls and amount owed for the signed-in user's API keys.
+router.get('/consumer', async (req, res) => {
+  const admin = getAdminClient()
+  const { data, error } = await admin
+    .from('usage_logs')
+    .select('id, agent_id, api_key_id, status, latency_ms, created_at, agents(name, price_per_call)')
+    .eq('caller_id', req.userId)
+    .order('created_at', { ascending: false })
+    .limit(500)
+  if (error) return res.status(400).json({ error: error.message })
+  const rows = data || []
+  res.json({ data: {
+    calls: rows.length,
+    successful_calls: rows.filter((row) => row.status === 'success').length,
+    total_owed: rows.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+    usage: rows,
+  } })
+})
+
 // Creator Portal: revenue, published agents, usage trends
 router.get('/summary', async (req, res) => {
   const admin = getAdminClient()
@@ -22,7 +41,7 @@ router.get('/summary', async (req, res) => {
   if (agentIds.length > 0) {
     const { data: usageData, error: usageError } = await admin
       .from('usage_logs')
-      .select('id, agent_id, created_at, status, latency_ms')
+    .select('id, agent_id, created_at, status, latency_ms')
       .in('agent_id', agentIds)
     if (usageError) return res.status(400).json({ error: usageError.message })
     calls = usageData || []
@@ -30,7 +49,7 @@ router.get('/summary', async (req, res) => {
 
   const revenue = calls.reduce((sum, call) => {
     const agent = publishedAgents.find((a) => a.id === call.agent_id)
-    return sum + (call.status === 'success' ? Number(agent?.price_per_call || 0) : 0)
+    return sum + (call.status === 'success' ? Number(call.amount ?? agent?.price_per_call ?? 0) : 0)
   }, 0)
 
   res.json({

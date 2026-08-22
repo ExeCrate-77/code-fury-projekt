@@ -7,7 +7,7 @@ import { AuthGate } from "@/components/auth-gate"
 import { Badge, FieldLabel, PageHeader, Select } from "@/components/field"
 import type { Model } from "@/lib/types"
 
-const PROVIDERS = ["openai", "anthropic", "ollama", "custom"]
+const PROVIDERS = ["openai", "anthropic", "ollama", "gemini", "custom"]
 
 export default function ModelsPage() {
   return (
