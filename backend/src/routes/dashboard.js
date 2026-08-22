@@ -10,7 +10,7 @@ router.get('/consumer', async (req, res) => {
   const admin = getAdminClient()
   const { data, error } = await admin
     .from('usage_logs')
-    .select('id, agent_id, api_key_id, status, latency_ms, amount, created_at, agents(name)')
+    .select('id, agent_id, api_key_id, status, latency_ms, created_at, agents(name, price_per_call)')
     .eq('caller_id', req.userId)
     .order('created_at', { ascending: false })
     .limit(500)
@@ -41,7 +41,7 @@ router.get('/summary', async (req, res) => {
   if (agentIds.length > 0) {
     const { data: usageData, error: usageError } = await admin
       .from('usage_logs')
-      .select('id, agent_id, created_at, status, latency_ms, amount')
+    .select('id, agent_id, created_at, status, latency_ms')
       .in('agent_id', agentIds)
     if (usageError) return res.status(400).json({ error: usageError.message })
     calls = usageData || []
@@ -106,7 +106,7 @@ router.get('/usage', async (req, res) => {
 
   let query = admin
     .from('usage_logs')
-    .select('id, agent_id, status, latency_ms, amount, created_at')
+    .select('id, agent_id, status, latency_ms, created_at')
     .gte('created_at', since)
     .order('created_at', { ascending: true })
 

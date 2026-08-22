@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { requireApiKey } from '../middleware/apiKeyAuth.js'
 import { getAdminClient } from '../lib/supabase.js'
-import { runAgent } from '../services/agentRunner.js'
+import { invokePublishedAgent } from '../services/sandbox.js'
 import { recordUsage } from '../services/usage.js'
 
 const router = Router()
@@ -28,7 +28,7 @@ router.post('/:id/execute', requireApiKey, async (req, res) => {
   const config = { model: agent.model, skill: agent.skill, tools }
 
   const startedAt = Date.now()
-  const result = await runAgent(config, [{ role: 'user', content: userMessage }], history)
+  const result = await invokePublishedAgent(agent.id, config, { input: userMessage, history })
   const latencyMs = Date.now() - startedAt
 
   await recordUsage({
