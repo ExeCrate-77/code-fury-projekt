@@ -1,0 +1,3 @@
+export function DataTable({ columns, rows }: { columns: string[]; rows: unknown[][] }) {
+  return <div className="overflow-x-auto border border-[var(--ai-border)]"><table className="w-full border-collapse text-left text-xs"><thead><tr>{columns.map((column) => <th className="border-b border-[var(--ai-border)] px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-[var(--ai-muted)]" key={column}>{column}</th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={index}>{row.map((cell, cellIndex) => <td className="border-b border-[var(--ai-border)] px-3 py-2 text-[var(--ai-text)]" key={cellIndex}>{String(cell)}</td>)}</tr>)}</tbody></table></div>
+}

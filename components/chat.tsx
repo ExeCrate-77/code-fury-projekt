@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Sparkles, Send, Bot, User, Cpu } from 'lucide-react';
 import { ModelCard } from './ModelCard';
+import { api } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -153,6 +154,51 @@ export default function ChatView() {
             <Send className="h-4 w-4" />
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+interface ChatStreamProps {
+  token: string | null;
+  modelId: string;
+  skillId: string;
+  toolIds: string[];
+}
+
+export function ChatStream({ token, modelId, skillId, toolIds }: ChatStreamProps) {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const sendMessage = async () => {
+    if (!token || !modelId || !skillId || !input.trim() || loading) return;
+    const message = input.trim();
+    setMessages((current) => [...current, { id: Date.now().toString(), role: 'user', content: message }]);
+    setInput('');
+    setLoading(true);
+    try {
+      const result = await api<{ data: { response: string } }>(token, '/chat', {
+        method: 'POST',
+        body: JSON.stringify({ message, history: messages.map(({ role, content }) => ({ role, content })), model_id: modelId, skill_id: skillId, tool_ids: toolIds }),
+      });
+      setMessages((current) => [...current, { id: `${Date.now()}-assistant`, role: 'assistant', content: result.data.response }]);
+    } catch (error) {
+      setMessages((current) => [...current, { id: `${Date.now()}-error`, role: 'assistant', content: error instanceof Error ? error.message : 'Request failed' }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3 border border-border p-3">
+      <div className="min-h-48 space-y-3 overflow-y-auto text-sm">
+        {messages.map((message) => <div key={message.id} className={message.role === 'user' ? 'text-right' : 'text-left'}>{message.content}</div>)}
+        {loading && <div className="text-muted-foreground">Thinking...</div>}
+      </div>
+      <div className="flex gap-2">
+        <input value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') sendMessage(); }} placeholder="Test this agent..." className="min-w-0 flex-1 border border-border bg-transparent px-3 py-2 text-sm outline-none focus-visible:border-primary" />
+        <button onClick={sendMessage} disabled={loading} className="bg-primary px-3 py-2 text-xs font-bold uppercase text-primary-foreground disabled:opacity-40">Send</button>
       </div>
     </div>
   );

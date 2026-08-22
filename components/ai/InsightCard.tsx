@@ -1,0 +1,3 @@
+export function InsightCard({ title, value, description, progress = 72 }: { title: string; value: string; description?: string; progress?: number }) {
+  return <section className="border-l-2 border-[var(--ai-accent)] bg-[var(--ai-panel)] px-4 py-3"><p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--ai-accent)]">Insight</p><p className="mt-3 text-sm text-[var(--ai-muted)]">{title}</p><p className="mt-1 text-2xl font-light tracking-tight">{value}</p><div className="mt-3 h-1 bg-white/10"><span className="block h-full bg-[var(--ai-accent)]" style={{ width: `${progress}%` }} /></div>{description && <p className="mt-2 text-xs text-[var(--ai-muted)]">{description}</p>}</section>
+}

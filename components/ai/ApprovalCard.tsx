@@ -1,0 +1,3 @@
+export function ApprovalCard({ title, description }: { title: string; description: string }) {
+  return <section className="border border-[var(--ai-border)] p-4"><p className="font-mono text-[10px] uppercase tracking-widest text-[var(--ai-accent)]">Approval required</p><h3 className="mt-2 text-sm">{title}</h3><p className="mt-1 text-xs leading-5 text-[var(--ai-muted)]">{description}</p><button className="mt-4 border border-[var(--ai-accent)] px-3 py-2 font-mono text-[10px] uppercase tracking-widest text-[var(--ai-accent)] hover:bg-[var(--ai-accent)] hover:text-black">Approve</button></section>
+}
