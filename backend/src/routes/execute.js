@@ -48,8 +48,8 @@ router.post('/:id/execute', requireApiKey, async (req, res) => {
   res.json({
     data: {
       agent_id: agent.id,
-      response: result.output,
-      tool_calls: result.toolCalls,
+      response: result.response,
+      tool_calls: result.tool_calls || [],
       price_per_call: agent.price_per_call,
       billed_amount: Number(agent.price_per_call || 0),
     },
