@@ -1,69 +1,201 @@
-import Image from "next/image";
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { AgentForgeNavbar } from '@/components/AgentForgeNavbar';
+import { AgentMarketplaceView } from '@/components/AgentMarketplaceView';
+import { AgentComposerView } from '@/components/AgentComposerView';
+import { EntityCrudIsolationView } from '@/components/EntityCrudIsolationView';
+import { AgentPlaygroundView } from '@/components/AgentPlaygroundView';
+import { CreatorAnalyticsView } from '@/components/CreatorAnalyticsView';
+import { DeployStackKeyModal } from '@/components/DeployStackKeyModal';
+import { StackDetailModal } from '@/components/StackDetailModal';
+import { AgentEntity, ModelEntity, SkillEntity, ToolEntity, AgentRunEntity } from '@/lib/agentforge-types';
+import { 
+  getStoredAgents, 
+  getStoredModels, 
+  getStoredSkills, 
+  getStoredTools, 
+  getStoredRuns, 
+  getUserCredits,
+  addCredits
+} from '@/lib/agentforge-store';
 
 export default function Home() {
+  const [activeTab, setActiveTab] = useState<'marketplace' | 'composer' | 'crud' | 'playground' | 'analytics'>('marketplace');
+
+  // Entities State
+  const [agents, setAgents] = useState<AgentEntity[]>([]);
+  const [models, setModels] = useState<ModelEntity[]>([]);
+  const [skills, setSkills] = useState<SkillEntity[]>([]);
+  const [tools, setTools] = useState<ToolEntity[]>([]);
+  const [runs, setRuns] = useState<AgentRunEntity[]>([]);
+  const [userCredits, setUserCredits] = useState<number>(50.00);
+
+  // Modals & Selected Agent
+  const [selectedAgent, setSelectedAgent] = useState<AgentEntity | null>(null);
+  const [isDeployModalOpen, setIsDeployModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+
+  useEffect(() => {
+    setAgents(getStoredAgents());
+    setModels(getStoredModels());
+    setSkills(getStoredSkills());
+    setTools(getStoredTools());
+    setRuns(getStoredRuns());
+    setUserCredits(getUserCredits());
+  }, []);
+
+  const handleOpenDeploy = (agent: AgentEntity) => {
+    setSelectedAgent(agent);
+    setIsDeployModalOpen(true);
+  };
+
+  const handleOpenDetail = (agent: AgentEntity) => {
+    setSelectedAgent(agent);
+    setIsDetailModalOpen(true);
+  };
+
+  const handleSelectAgentForPlayground = (agent: AgentEntity) => {
+    setSelectedAgent(agent);
+    setActiveTab('playground');
+  };
+
+  const handleAgentComposed = (newAgent: AgentEntity) => {
+    setAgents(prev => [newAgent, ...prev.filter(a => a.id !== newAgent.id)]);
+    setSelectedAgent(newAgent);
+    setActiveTab('marketplace');
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+    <div className="min-h-screen flex flex-col bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-50 font-sans selection:bg-indigo-500 selection:text-white">
+      {/* Universal Navigation Header */}
+      <AgentForgeNavbar
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        userCredits={userCredits}
+        onTopUpCredits={() => setUserCredits(addCredits(25))}
+        activeKeysCount={agents.filter(a => a.api_key).length}
+        openComposer={() => setActiveTab('composer')}
+      />
+
+      {/* Main Tab Views */}
+      <main className="flex-1">
+        {activeTab === 'marketplace' && (
+          <AgentMarketplaceView
+            agents={agents}
+            models={models}
+            skills={skills}
+            tools={tools}
+            onSelectAgentForPlayground={handleSelectAgentForPlayground}
+            onOpenDeployModal={handleOpenDeploy}
+            onOpenDetailModal={handleOpenDetail}
+            onNavigateToComposer={() => setActiveTab('composer')}
+          />
+        )}
+
+        {activeTab === 'composer' && (
+          <AgentComposerView
+            models={models}
+            skills={skills}
+            tools={tools}
+            onAgentComposed={handleAgentComposed}
+            onTestInPlayground={handleSelectAgentForPlayground}
+          />
+        )}
+
+        {activeTab === 'crud' && (
+          <EntityCrudIsolationView
+            models={models}
+            skills={skills}
+            tools={tools}
+            onModelsUpdated={setModels}
+            onSkillsUpdated={setSkills}
+            onToolsUpdated={setTools}
+          />
+        )}
+
+        {activeTab === 'playground' && (
+          <AgentPlaygroundView
+            agents={agents}
+            selectedAgent={selectedAgent}
+            onSelectAgent={setSelectedAgent}
+            models={models}
+            skills={skills}
+            tools={tools}
+            userCredits={userCredits}
+            onCreditsUpdated={setUserCredits}
+          />
+        )}
+
+        {activeTab === 'analytics' && (
+          <CreatorAnalyticsView
+            agents={agents}
+            runs={runs}
+            userCredits={userCredits}
+            onCreditsUpdated={setUserCredits}
+            onOpenDeployModal={handleOpenDeploy}
+          />
+        )}
       </main>
+
+      {/* Key Generation Modal */}
+      {selectedAgent && (
+        <DeployStackKeyModal
+          stack={{
+            id: selectedAgent.id,
+            ownerId: 'creator',
+            ownerName: selectedAgent.creator_name,
+            name: selectedAgent.name,
+            slug: selectedAgent.slug,
+            tagline: selectedAgent.tagline,
+            description: selectedAgent.description,
+            category: 'Development',
+            config: {
+              model: 'gemini-2.0-flash',
+              temperature: 0.2,
+              maxTokens: 2048,
+              topP: 0.95,
+              systemPrompt: '',
+              selectedSkillIds: [],
+              enabledTools: []
+            },
+            status: 'published',
+            pricePerCall: selectedAgent.price_per_call,
+            monthlyPrice: selectedAgent.monthly_price || 29,
+            callsCount: selectedAgent.calls_count,
+            successRate: selectedAgent.success_rate,
+            avgLatencyMs: selectedAgent.avg_latency_ms,
+            rating: selectedAgent.rating,
+            createdAt: selectedAgent.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }}
+          isOpen={isDeployModalOpen}
+          onClose={() => setIsDeployModalOpen(false)}
+          onKeyGenerated={(key) => {
+            // Update agent key
+            setAgents(prev => prev.map(a => a.id === selectedAgent.id ? { ...a, api_key: key.rawKey } : a));
+          }}
+        />
+      )}
+
+      {/* Footer */}
+      <footer className="border-t border-zinc-200 dark:border-zinc-800/80 bg-white dark:bg-zinc-950 py-8 px-4 sm:px-8 text-xs text-zinc-500 dark:text-zinc-400">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+          <div>
+            <span className="font-extrabold text-zinc-900 dark:text-white">AgentForge AI Marketplace</span>
+            <p className="text-[11px] mt-0.5">LangChain.js Orchestrated Multi-Tool Composable Agent Platform</p>
+          </div>
+          <div className="flex items-center gap-4 text-[11px]">
+            <span>Next.js 14 / 16 (App Router)</span>
+            <span>•</span>
+            <span>Google Gemini 2.5 ReAct</span>
+            <span>•</span>
+            <span>Supabase Postgres + RLS</span>
+            <span>•</span>
+            <span>Sandboxed Node VM</span>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
