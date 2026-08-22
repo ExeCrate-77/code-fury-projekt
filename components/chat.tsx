@@ -1,148 +1,159 @@
-"use client"
+'use client';
 
-import { useEffect, useRef, useState } from "react"
-import { api } from "@/lib/api"
-import type { ChatMessage, ChatToolCall } from "@/lib/types"
+import { useState } from 'react';
+import { Sparkles, Send, Bot, User, Cpu } from 'lucide-react';
+import { ModelCard } from './ModelCard';
 
-export function ChatStream({
-  token,
-  modelId,
-  skillId,
-  toolIds,
-  compact = false,
-}: {
-  token: string | null
-  modelId: string
-  skillId: string
-  toolIds: string[]
-  compact?: boolean
-}) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState("")
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const endRef = useRef<HTMLDivElement>(null)
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  componentPayload?: any; // To attach interactive components in message stream
+}
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, busy])
+export default function ChatView() {
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: '1',
+      role: 'assistant',
+      content: 'Hello! Pick a model above and prompt me to generate UI components or execute agent tasks.',
+    },
+  ]);
+  const [input, setInput] = useState('');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
+  const [loading, setLoading] = useState(false);
 
-  async function send() {
-    const message = input.trim()
-    if (!message || busy) return
-    if (!modelId || !skillId) {
-      setError("Select a model and a skill first.")
-      return
-    }
-    setInput("")
-    setError(null)
-    const history = messages.map(({ role, content }) => ({ role, content }))
-    setMessages((m) => [...m, { role: "user", content: message }])
-    setBusy(true)
+  const sendMessage = async () => {
+    if (!input.trim() || loading) return;
+
+    const userMsg: Message = { id: Date.now().toString(), role: 'user', content: input };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput('');
+    setLoading(true);
+
     try {
-      const json = await api<{
-        data: { response: string; tool_calls: ChatToolCall[] }
-      }>(token, "/chat", {
-        method: "POST",
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message,
-          history,
-          model_id: modelId,
-          skill_id: skillId,
-          tool_ids: toolIds,
+          messages: [...messages, userMsg],
+          selectedModel,
         }),
-      })
-      setMessages((m) => [
-        ...m,
-        {
-          role: "assistant",
-          content: json.data.response,
-          toolCalls: json.data.tool_calls,
-        },
-      ])
+      });
+
+      const data = await res.json();
+
+      // Check if user requested a component (e.g., "show model card")
+      let payload = null;
+      if (input.toLowerCase().includes('card') || input.toLowerCase().includes('component')) {
+        payload = {
+          title: 'CodeRefine Pro',
+          description: 'Optimized Next.js/SQL execution agent.',
+          tag: 'Development',
+          price: 'Free',
+        };
+      }
+
+      const botMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: data.content || data.error,
+        componentPayload: payload,
+      };
+
+      setMessages((prev) => [...prev, botMsg]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Request failed")
+      console.error(err);
     } finally {
-      setBusy(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="flex flex-col border-2 border-foreground">
-      <div className="border-b-2 border-foreground bg-secondary px-3 py-2 text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
-        Live session
-      </div>
-      <div
-        className={`flex flex-col gap-4 overflow-y-auto p-4 ${
-          compact ? "max-h-80 min-h-40" : "max-h-[28rem] min-h-64"
-        }`}
-      >
-        {messages.length === 0 && (
-          <p className="text-xs uppercase tracking-[0.25em] text-muted-foreground">
-            // No messages yet — configure the persona above and send a prompt
-          </p>
-        )}
-        {messages.map((m, i) => (
-          <div key={i} className="flex flex-col gap-1">
-            <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-muted-foreground">
-              {m.role === "user" ? "You" : "Agent"}
-            </span>
+    <div className="flex h-screen flex-col bg-[#09090b] text-white">
+      {/* Header & Model Selector */}
+      <header className="flex items-center justify-between border-b border-white/10 px-6 py-4 backdrop-blur-xl">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-5 w-5 text-indigo-400" />
+          <h1 className="text-lg font-bold tracking-tight">AI Multi-Model Playground</h1>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Cpu className="h-4 w-4 text-zinc-400" />
+          <select
+            value={selectedModel}
+            onChange={(e) => setSelectedModel(e.target.value)}
+            className="rounded-lg border border-white/10 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-indigo-500"
+          >
+            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+            <option value="gpt-4o">ChatGPT (GPT-4o)</option>
+            <option value="claude-3-5-sonnet">Claude 3.5 Sonnet</option>
+          </select>
+        </div>
+      </header>
+
+      {/* Chat Messages Window */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`flex gap-3 max-w-3xl ${
+              msg.role === 'user' ? 'ml-auto flex-row-reverse' : 'mr-auto'
+            }`}
+          >
             <div
-              className={
-                m.role === "user"
-                  ? "border border-border bg-secondary p-3 text-sm leading-relaxed"
-                  : "border-l-4 border-primary bg-card p-3 text-sm leading-relaxed"
-              }
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${
+                msg.role === 'user'
+                  ? 'border-indigo-500/30 bg-indigo-500/20 text-indigo-300'
+                  : 'border-white/10 bg-zinc-900 text-zinc-300'
+              }`}
             >
-              {m.content || (busy && i === messages.length - 1 ? "..." : "")}
+              {msg.role === 'user' ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
             </div>
-            {m.toolCalls && m.toolCalls.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {m.toolCalls.map((tc, j) => (
-                  <span
-                    key={j}
-                    className="border border-primary/40 px-2 py-0.5 text-[10px] uppercase tracking-widest text-primary"
-                  >
-                    ⟶ tool: {tc.name}
-                  </span>
-                ))}
+
+            <div className="space-y-3">
+              <div
+                className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+                  msg.role === 'user'
+                    ? 'bg-indigo-600 text-white'
+                    : 'border border-white/10 bg-zinc-900/80 text-zinc-200'
+                }`}
+              >
+                {msg.content}
               </div>
-            )}
+
+              {/* Render dynamic UI component inside chat message */}
+              {msg.componentPayload && (
+                <div className="w-80">
+                  <ModelCard {...msg.componentPayload} />
+                </div>
+              )}
+            </div>
           </div>
         ))}
-        {busy && (
-          <p className="animate-pulse text-[10px] uppercase tracking-[0.3em] text-primary">
-            Executing agent...
-          </p>
-        )}
-        {error && (
-          <p className="border border-destructive p-2 text-xs uppercase tracking-widest text-destructive">
-            {error}
-          </p>
-        )}
-        <div ref={endRef} />
+        {loading && <div className="text-sm text-zinc-500 italic">Model is thinking...</div>}
       </div>
-      <div className="flex border-t-2 border-foreground">
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault()
-              send()
-            }
-          }}
-          placeholder="Type a message..."
-          className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm outline-none placeholder:text-muted-foreground"
-        />
-        <button
-          onClick={send}
-          disabled={busy}
-          className="border-l-2 border-foreground bg-primary px-6 text-xs font-bold uppercase tracking-widest text-primary-foreground hover:opacity-80 disabled:opacity-40"
-        >
-          {busy ? "Running" : "Send"}
-        </button>
+
+      {/* Chat Input Bar */}
+      <div className="border-t border-white/10 p-4">
+        <div className="max-w-3xl mx-auto flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && sendMessage()}
+            placeholder={`Message ${selectedModel}... (e.g. "Show me a model card")`}
+            className="flex-1 rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-sm text-white placeholder-zinc-500 outline-none focus:border-indigo-500/50"
+          />
+          <button
+            onClick={sendMessage}
+            disabled={loading}
+            className="rounded-xl bg-indigo-600 px-5 py-3 text-white transition-hover hover:bg-indigo-500"
+          >
+            <Send className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
-  )
+  );
 }
