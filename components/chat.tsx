@@ -5,6 +5,7 @@ import { api } from "@/lib/api"
 import type { ChatMessage, ChatToolCall } from "@/lib/types"
 import { Orb } from "@/components/orb"
 import { cn } from "@/lib/utils"
+import ReactMarkdown from "react-markdown"
 
 const SUGGESTIONS = [
   "Write a Python script that plots fibonacci numbers",
@@ -214,9 +215,7 @@ function MessageRow({ message }: { message: ChatMessage }) {
         <Orb size={30} />
       </div>
       <div className="glass max-w-[85%] flex-1 px-4 py-3">
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">
-          {message.content}
-        </p>
+        <AssistantContent content={message.content} />
         {message.toolCalls && message.toolCalls.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-foreground/10 pt-2.5">
             <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground">
@@ -236,6 +235,16 @@ function MessageRow({ message }: { message: ChatMessage }) {
       </div>
     </div>
   )
+}
+
+function AssistantContent({ content }: { content: string }) {
+  const [visible, setVisible] = useState(0)
+  useEffect(() => {
+    if (visible >= content.length) return
+    const timer = window.setTimeout(() => setVisible((value) => Math.min(content.length, value + Math.max(2, Math.ceil(content.length / 80)))), 18)
+    return () => window.clearTimeout(timer)
+  }, [content, visible])
+  return <div className="prose prose-invert max-w-none text-sm leading-relaxed prose-headings:font-black prose-headings:uppercase prose-a:text-primary prose-code:border prose-code:border-foreground/10 prose-code:bg-background/60 prose-code:px-1 prose-pre:border prose-pre:border-foreground/10 prose-pre:bg-background/70"><ReactMarkdown>{content.slice(0, visible)}</ReactMarkdown>{visible < content.length && <span className="ml-1 inline-block h-4 w-1 animate-pulse bg-primary align-middle" />}</div>
 }
 
 function ThinkingRow({ elapsed }: { elapsed: number }) {

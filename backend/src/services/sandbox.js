@@ -2,7 +2,8 @@ import { Sandbox } from '@e2b/code-interpreter'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 
-const TTL = 24 * 60 * 60 * 1000
+// E2B enforces a maximum sandbox timeout of one hour.
+const TTL = 60 * 60 * 1000
 const runtimes = new Map()
 const runtimeSource = await readFile(fileURLToPath(new URL('../../agents-served/server.js', import.meta.url)), 'utf8')
 
