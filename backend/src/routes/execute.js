@@ -3,7 +3,6 @@ import { requireApiKey } from '../middleware/apiKeyAuth.js'
 import { getAdminClient } from '../lib/supabase.js'
 import { runAgent } from '../services/agentRunner.js'
 import { recordUsage } from '../services/usage.js'
-import { reportMeteredUsage } from '../services/billing.js'
 
 const router = Router()
 
@@ -38,9 +37,8 @@ router.post('/:id/execute', requireApiKey, async (req, res) => {
     caller_id: req.apiKey.user_id,
     status: 'success',
     latency_ms: latencyMs,
+    amount: Number(agent.price_per_call || 0),
   })
-
-  await reportMeteredUsage(agent, req.apiKey)
 
   await admin
     .from('api_keys')
@@ -53,6 +51,7 @@ router.post('/:id/execute', requireApiKey, async (req, res) => {
       response: result.output,
       tool_calls: result.toolCalls,
       price_per_call: agent.price_per_call,
+      billed_amount: Number(agent.price_per_call || 0),
     },
   })
 })

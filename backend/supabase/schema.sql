@@ -5,8 +5,6 @@
 create table if not exists public.users (
   id uuid primary key references auth.users (id) on delete cascade,
   email text,
-  stripe_customer_id text,
-  stripe_subscription_id text,
   created_at timestamptz not null default now()
 );
 
@@ -14,7 +12,7 @@ create table if not exists public.models (
   id uuid primary key default gen_random_uuid(),
   creator_id uuid not null references public.users (id) on delete cascade,
   name text not null,
-  provider text not null, -- openai | anthropic | ollama | custom
+  provider text not null, -- openai | anthropic | gemini | ollama | custom
   model_name text,
   base_url text,
   api_key text,
@@ -50,7 +48,6 @@ create table if not exists public.agents (
   skill_id uuid not null references public.skills (id),
   is_published boolean not null default false,
   price_per_call numeric not null default 0,
-  stripe_subscription_item_id text,
   created_at timestamptz not null default now()
 );
 
@@ -77,15 +74,7 @@ create table if not exists public.usage_logs (
   caller_id uuid references public.users (id) on delete set null,
   status text not null default 'success',
   latency_ms integer,
-  created_at timestamptz not null default now()
-);
-
-create table if not exists public.payments (
-  id uuid primary key default gen_random_uuid(),
-  stripe_event_id text,
-  stripe_customer_id text,
-  amount_paid integer,
-  event_type text,
+  amount numeric not null default 0,
   created_at timestamptz not null default now()
 );
 
@@ -119,6 +108,8 @@ create index if not exists idx_usage_logs_agent on public.usage_logs (agent_id, 
 create index if not exists idx_usage_logs_key on public.usage_logs (api_key_id);
 create index if not exists idx_api_keys_hash on public.api_keys (key_hash);
 
+alter table public.usage_logs add column if not exists amount numeric not null default 0;
+
 -- Row Level Security
 -- The Express backend uses the admin (secret-key) client for cross-user reads
 -- and enforces ownership in code; these policies protect direct client access.
@@ -130,7 +121,6 @@ alter table public.agents enable row level security;
 alter table public.agent_tools enable row level security;
 alter table public.api_keys enable row level security;
 alter table public.usage_logs enable row level security;
-alter table public.payments enable row level security;
 
 create policy "read own profile" on public.users
   for select using (auth.uid() = id);

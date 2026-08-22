@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/tools", label: "Tools" },
   { href: "/agents/builder", label: "Builder" },
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/docs", label: "API Docs" },
 ]
 
 export function Nav() {

@@ -29,7 +29,7 @@ export async function runAgent(config, messages, history = []) {
 
   const result = await agent.invoke({
     messages: toLangChainMessages(history, messages),
-  })
+  }, { recursionLimit: 25 })
 
   const outputMessages = result.messages || []
   const toolCalls = outputMessages.flatMap((m) =>

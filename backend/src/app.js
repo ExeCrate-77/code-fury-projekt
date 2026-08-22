@@ -9,18 +9,15 @@ import apiKeysRouter from './routes/apiKeys.js'
 import chatRouter from './routes/chat.js'
 import executeRouter from './routes/execute.js'
 import dashboardRouter from './routes/dashboard.js'
-import webhooksRouter from './routes/webhooks.js'
 import { errorHandler } from './middleware/errorHandler.js'
 
 const app = express()
 
 app.use(cors())
-app.use('/api/v1/webhooks', express.raw({ type: 'application/json' }))
 app.use(express.json())
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }))
 
-app.use('/api/v1/webhooks', webhooksRouter)
 app.use('/api/v1/models', modelsRouter)
 app.use('/api/v1/skills', skillsRouter)
 app.use('/api/v1/tools', toolsRouter)
