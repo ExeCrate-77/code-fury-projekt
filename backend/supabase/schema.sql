@@ -108,6 +108,11 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
+-- Backfill users that signed up before the trigger existed
+insert into public.users (id, email)
+select id, email from auth.users
+on conflict (id) do nothing;
+
 -- Indexes
 create index if not exists idx_agents_creator on public.agents (creator_id);
 create index if not exists idx_usage_logs_agent on public.usage_logs (agent_id, created_at);
