@@ -8,6 +8,7 @@ import { AuthGate } from "@/components/auth-gate"
 import { Badge, PageHeader } from "@/components/field"
 import { ApiKeysPanel } from "@/components/api-keys"
 import type { DashboardAgent, DashboardSummary, UsageLog } from "@/lib/types"
+import { ReceiptPrinter, type ReceiptPrinterStage } from "@/components/recieptPrinter"
 
 export default function DashboardPage() {
   return (
@@ -26,6 +27,19 @@ function Dashboard() {
   const [agents, setAgents] = useState<DashboardAgent[]>([])
   const [usage, setUsage] = useState<UsageLog[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [receiptOpen, setReceiptOpen] = useState(false)
+  const [receiptStage, setReceiptStage] = useState<ReceiptPrinterStage>("processing")
+
+  useEffect(() => {
+    if (!receiptOpen) return
+    setReceiptStage("processing")
+    const printing = window.setTimeout(() => setReceiptStage("printing"), 550)
+    const complete = window.setTimeout(() => setReceiptStage("complete"), 2850)
+    return () => {
+      window.clearTimeout(printing)
+      window.clearTimeout(complete)
+    }
+  }, [receiptOpen])
 
   const load = useCallback(async () => {
     if (!token) return
@@ -74,7 +88,7 @@ function Dashboard() {
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-px border-2 border-foreground bg-border lg:grid-cols-4">
+      <button onClick={() => setReceiptOpen(true)} className="grid grid-cols-2 gap-px border-2 border-foreground bg-border text-left transition-transform hover:-translate-y-0.5 lg:grid-cols-4">
         <Stat label="Published agents" value={summary?.published_agents ?? "—"} />
         <Stat label="Total calls" value={summary?.total_calls ?? "—"} />
         <Stat label="Successful calls" value={summary?.successful_calls ?? "—"} />
@@ -83,7 +97,26 @@ function Dashboard() {
           value={summary ? `$${Number(summary.total_revenue).toFixed(2)}` : "—"}
           accent
         />
-      </div>
+      </button>
+
+      {receiptOpen && summary && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true">
+          <div className="relative w-full max-w-lg">
+            <button onClick={() => setReceiptOpen(false)} className="absolute -top-3 -right-3 z-10 size-8 border-2 border-foreground bg-background text-sm font-black">×</button>
+            <ReceiptPrinter.Root stage={receiptStage} feedMotion="stepped">
+              <ReceiptPrinter.Machine>
+                <ReceiptPrinter.Header><ReceiptPrinter.Status>Usage receipt / last 30 days</ReceiptPrinter.Status><span className="font-mono text-xs text-grayscale-8">AGENTMKT</span></ReceiptPrinter.Header>
+                <ReceiptPrinter.Screen><div className="font-mono text-xs tracking-widest">SETTLEMENT READY<br />{new Date().toISOString().slice(0, 10)}</div></ReceiptPrinter.Screen>
+                <ReceiptPrinter.Output>
+                  <ReceiptPrinter.Paper>
+                    <div className="space-y-4 text-sm"><div className="text-center text-lg font-bold">AGENT USAGE</div><div className="border-y border-dashed py-3">{[["PUBLISHED AGENTS", summary.published_agents], ["TOTAL CALLS", summary.total_calls], ["SUCCESSFUL CALLS", summary.successful_calls]].map(([label, value]) => <div key={String(label)} className="flex justify-between"><span>{label}</span><span>{value}</span></div>)}</div><div className="flex justify-between text-lg font-bold"><span>REVENUE</span><span>${Number(summary.total_revenue).toFixed(2)}</span></div><div className="text-center text-xs">Usage is metered per successful call.<br />Thank you for building with AgentMkt.</div></div>
+                  </ReceiptPrinter.Paper>
+                </ReceiptPrinter.Output>
+              </ReceiptPrinter.Machine>
+            </ReceiptPrinter.Root>
+          </div>
+        </div>
+      )}
 
       {/* Usage trend */}
       <section className="border-2 border-foreground">

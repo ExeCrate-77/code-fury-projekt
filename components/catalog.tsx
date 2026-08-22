@@ -15,10 +15,12 @@ export function CatalogGrid({
   tab,
   items,
   onTryAgent,
+  onApiRequest,
 }: {
   tab: CatalogTab
   items: (Agent | Skill | Model | Tool)[]
   onTryAgent?: (agent: Agent) => void
+  onApiRequest?: (agent: Agent) => void
 }) {
   if (items.length === 0) {
     return (
@@ -40,6 +42,7 @@ export function CatalogGrid({
               ? () => onTryAgent(item as Agent)
               : undefined
           }
+          onApiRequest={tab === "Agents" ? () => onApiRequest?.(item as Agent) : undefined}
         />
       ))}
     </div>
@@ -50,10 +53,12 @@ function CatalogCard({
   tab,
   item,
   onTry,
+  onApiRequest,
 }: {
   tab: CatalogTab
   item: Agent | Skill | Model | Tool
   onTry?: () => void
+  onApiRequest?: () => void
 }) {
   const meta = (() => {
     switch (tab) {
@@ -118,12 +123,15 @@ function CatalogCard({
           {meta.meta}
         </p>
         {onTry && (
+          <div className="flex flex-wrap gap-2">
           <button
             onClick={onTry}
             className="mt-2 self-start border border-foreground px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors hover:bg-foreground hover:text-background"
           >
             Try agent →
           </button>
+          {onApiRequest && <button onClick={onApiRequest} className="ml-2 border border-primary px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary hover:text-primary-foreground">API request</button>}
+          </div>
         )}
       </div>
     </article>

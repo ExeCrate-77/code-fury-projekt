@@ -30,7 +30,7 @@ export function PersonaBar({
   const [toolsOpen, setToolsOpen] = useState(false)
 
   const selectClasses =
-    "h-8 appearance-none border border-foreground/15 bg-transparent px-2 pr-7 text-[11px] font-bold uppercase tracking-widest outline-none transition-colors hover:border-foreground/40 focus-visible:border-primary"
+    "h-9 min-w-32 appearance-none border border-foreground/20 bg-background/70 px-3 pr-8 text-[10px] font-black uppercase tracking-[0.16em] shadow-[inset_0_1px_0_color-mix(in_oklab,var(--foreground)_10%,transparent)] outline-none transition-all hover:border-primary/60 hover:bg-primary/5 focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-primary"
 
   return (
     <div className="glass flex flex-col">

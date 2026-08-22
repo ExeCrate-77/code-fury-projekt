@@ -13,6 +13,7 @@ import {
 } from "@/components/catalog"
 import type { Agent } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { API_URL } from "@/lib/api"
 
 export default function MarketplacePage() {
   return (
@@ -35,6 +36,8 @@ function Marketplace() {
 
   const [tab, setTab] = useState<CatalogTab>("Agents")
   const [search, setSearch] = useState("")
+  const [apiAgent, setApiAgent] = useState<Agent | null>(null)
+  const [copied, setCopied] = useState(false)
 
   const counts: Record<CatalogTab, number> = {
     Agents: agents.length,
@@ -60,6 +63,7 @@ function Marketplace() {
   }, [tab, search, agents, skills, models, tools])
 
   const tryAgent = (agent: Agent) => router.push(`/?agent=${agent.id}`)
+  const curl = apiAgent ? `curl ${API_URL}/agents/${apiAgent.id}/execute \\\n+  -H "x-api-key: amk_your_key" \\\n+  -H "content-type: application/json" \\\n+  -d '{"input":"Your task here"}'` : ""
 
   return (
     <div className="flex flex-col gap-6">
@@ -111,8 +115,9 @@ function Marketplace() {
           Loading catalog...
         </p>
       ) : (
-        <CatalogGrid tab={tab} items={filtered} onTryAgent={tryAgent} />
+        <CatalogGrid tab={tab} items={filtered} onTryAgent={tryAgent} onApiRequest={setApiAgent} />
       )}
+      {apiAgent && <div className="fixed inset-0 z-50 grid place-items-center bg-background/80 p-4 backdrop-blur-sm" role="dialog" aria-modal="true"><div className="glass w-full max-w-xl border-2 border-foreground p-5"><div className="mb-4 flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-primary">API request</p><h2 className="text-xl font-black uppercase">{apiAgent.name}</h2></div><button onClick={() => setApiAgent(null)} className="border border-foreground px-2 py-1 text-lg">×</button></div><pre className="overflow-x-auto border border-border bg-background p-4 text-xs leading-6 text-primary"><code>{curl}</code></pre><div className="mt-4 flex justify-end"><button onClick={() => { navigator.clipboard.writeText(curl); setCopied(true); setTimeout(() => setCopied(false), 1500) }} className="bg-primary px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-primary-foreground">{copied ? "Copied" : "Copy cURL"}</button></div></div></div>}
     </div>
   )
 }
